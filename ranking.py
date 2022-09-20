@@ -2,8 +2,6 @@
 #CS 454 Fall 2022
 #Assignment 2
 
-#output a list of tuples?? 
-
 
 import csv 
 import math
@@ -58,7 +56,7 @@ class TF_IDF():
     def tf(self, d, t):
         if t not in self.Index:
             print("0")
-            return
+            return 0
         tfscore = math.log( 1 + (self.Index[t][d]/self.DocumentTerms[d]))
         print(tfscore)
         return tfscore
@@ -92,7 +90,7 @@ class TF_IDF():
     '''
     def invertedIndex(self, datafile):
         Index: dict(str, dict(str, int)) = {}
-        
+        self.DocumentCount = 0 
         with open(datafile, 'r') as csvFile:   #Open and parse the CSV file
             csvreader = csv.reader(csvFile)
             next(csvreader)
@@ -121,6 +119,7 @@ class TF_IDF():
 
 class BM_25():
     def __init__(self, dataFile):
+        self.dataFile = dataFile                          #CSV file passed to class object
         self.k1 = 1.2                                     #k1 constant
         self.k2 = 500                                     #k2 constant
         self.b = 0.75                                     #b constant
@@ -129,18 +128,21 @@ class BM_25():
         self.BM25scores: dict(str, dict(str, int)) = {}   #Dictionary holding BM25 values for each term and document
         self.Index = self.invertedIndex(dataFile)         #Inverted Index of terms within document        
         self.AverageDocumentSize = self.AverageDocumentSize(self.DocumentTerms)
-        self.Results = []
     
-    
+    '''Returns a list of tuples representing the top k results based on bm25 score'''
     def bm25(self, query, k):
+        self.Results = []
+        self.Index = self.invertedIndex(self.dataFile)   #Call invertedIndex to reset values on object
         Query = query.split()
+        multiples = set(Query)
         for term in Query: #Loop over every single term in Query
             if term in self.Index:          #Check the index for the term
-                for doc in self.Index[term]:
-                    self.BM25scores[doc][term] = self.BMCalculator(term, doc, query)      #Add TF values to dict
-                #    print(self.Index[term][doc])
-       # print(self.BM25scores)
-        
+                for doc in self.Index[term]:    
+                    if term not in self.BM25scores[doc]:       #If first time term is seen, create score
+                        self.BM25scores[doc][term] = self.BMCalculator(term, doc, query)      #Add BM values to dict
+                    else:
+                        self.BM25scores[doc][term] += self.BMCalculator(term, doc, query) #If term was seen before, add score
+            
         for doc in self.BM25scores: #Go through the BM25 scores and sum them up for every document 
             if self.BM25scores[doc]:
                 self.Results.append( (str(doc), sum(self.BM25scores[doc].values())))
@@ -148,24 +150,24 @@ class BM_25():
         
         self.Results.sort(reverse=True,key=lambda y: y[1]) #Sort the BM25 scores 
         count = 0
+        self.output = []
         while count < k:
             if count < len(self.Results):
-                print(self.Results[count])
+                self.output.append(self.Results[count])
                 count+=1
             else:
                 break 
-                
-                #pass
-        #print(self.Index)
+        print(self.output)
+        return self.output
         
-        
+    '''Returns the BM25 score for a term, document and query'''
     def BMCalculator(self, term, doc, Query):
         first = math.log( ((self.DocumentCount - len(self.Index[term]) + 0.5) / (len(self.Index[term]) + 0.5)))
-        
-        second = ((self.k1 + 1) * (self.Index[term][doc] / self.DocumentTerms[doc])) / self.k1 * ( (1 - self.b) + self.b * (self.DocumentTerms[doc]/self.AverageDocumentSize)  ) + (self.Index[term][doc] / self.DocumentTerms[doc])
+
+        second = ((self.k1 + 1) * self.Index[term][doc]) / (self.k1 * ( (1 - self.b) + self.b * (self.DocumentTerms[doc]/self.AverageDocumentSize)  ) + (self.Index[term][doc]))
                 
-        third = ((self.k2 + 1) * (Query.count(term) / len(Query.split()) )) / (self.k2 + (Query.count(term) / len(Query.split()) ))
-        print(len(Query.split()))
+        third = ((self.k2 + 1) * (Query.count(term))) / (self.k2 + (Query.count(term)))
+
         return first * second * third
     
     
@@ -182,12 +184,13 @@ class BM_25():
     '''
     def invertedIndex(self, datafile):
         Index: dict(str, dict(str, int)) = {}
+        self.DocumentCount = 0
         
         with open(datafile, 'r') as csvFile:   #Open and parse the CSV file
             csvreader = csv.reader(csvFile)
             next(csvreader)
-            for document in csvreader:    #Loop every document
-                self.DocumentCount += 1        #Increment document count 
+            for document in csvreader:               #Loop every document
+                self.DocumentCount += 1              #Increment document count 
                 self.BM25scores[document[0]] = {}
                 self.DocumentTerms[document[0]] = len(document[1].split()) #save the number of terms for each doc
                 for term in document[1].split():  #For every term in doc
@@ -207,17 +210,17 @@ def main():
     file = "wine.csv"    
     file2 = "winemag-data_first150k.csv"
     Rank = TF_IDF(file)
-   # Rank.tf_idf("mac watson", 5)
     
-    Rank.tf_idf("tremendous wine", 3)
-    print()
-    Rank.tf_idf("tremendous tremendous watson", 3)
-    print()
-    Rank.tf_idf("the and", 3)
-    print()
-    Rank.tf_idf("and vlad", 3)
-    print()
-    Rank.tf_idf("vlad", 5)
+   # Rank.tf_idf("tremendous wine", 3)
+   # print()
+  #  Rank.tf_idf("tremendous tremendous watson", 3)
+    #print()
+  #  Rank.tf_idf("the and", 3)
+   # print()
+   # Rank.tf_idf("and vlad", 3)
+   # print()
+  #  Rank.tf_idf("US", 5)
+    
     #Rank.tf("0", "tremendous")
    # Rank.tf("0", "the")
    # Rank.tf("20", "vlad")
@@ -231,9 +234,26 @@ def main():
    # Rank.relevance("2", "and vlad")
 
     BM = BM_25(file)
-    #BM.bm25("the the the", 5)
-    #BM.bm25("tremendous", 5)
-  #  BM.bm25("tremendous tremendous watson", 5)
+  #  BM.bm25("tremendous", 3)
+   # print()
+   # BM.bm25("tremendous tremendous", 3)
+   # print()
+   # BM.bm25("tremendous tremendous watson", 3)
+   # print()
+   # BM.bm25("mac watson", 3)
+   # print()
+   # BM.bm25("vlad", 3)
+   # print()
+
+   # Rank.tf_idf("tremendous tremendous watson", 3)
+   # print()
+   # BM.bm25("tremendous tremendous watson", 3)
+
+   # Rank.tf_idf("and the", 3)
+   # print()
+   # BM.bm25("and the", 3)
+   #BM.bm25("tremendous tremendous tremendous watson", 3)
+   # Rank.tf_idf("tremendous tremendous tremendous watson", 5)
 
 if __name__ == '__main__':
 	main()
